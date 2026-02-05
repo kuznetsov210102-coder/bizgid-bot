@@ -46,7 +46,13 @@ def ai_answer(message):
             }
         )
         result = response.json()
-        bot.send_message(message.chat.id, result["choices"][0]["message"]["content"])
+        
+        # Проверяем ответ
+        if "choices" in result:
+            bot.send_message(message.chat.id, result["choices"][0]["message"]["content"])
+        else:
+            bot.send_message(message.chat.id, f"Ответ API: {result}")
+            
     except Exception as e:
         bot.send_message(message.chat.id, f"Ошибка: {e}")
 
