@@ -554,6 +554,7 @@ def main_menu():
         types.KeyboardButton("✅ Чек-лист открытия ИП"),
         types.KeyboardButton("❓ Частые вопросы"),
         types.KeyboardButton("📄 Шаблоны договоров")
+        types.KeyboardButton("🏠 В главное меню")
     )
     return markup
 
@@ -565,6 +566,15 @@ def send_welcome(message):
         message.chat.id,
         "👋 Привет! Я *БизГид* — твой помощник по налогам и бизнесу в Казахстане.\n\n"
         "Выбери раздел:",
+        parse_mode="Markdown",
+        reply_markup=main_menu()
+    )
+
+@bot.message_handler(func=lambda m: m.text == "🏠 В главное меню")
+def go_home(message):
+    bot.send_message(
+        message.chat.id,
+        "🏠 *Главное меню*\n\nВыбери раздел:",
         parse_mode="Markdown",
         reply_markup=main_menu()
     )
