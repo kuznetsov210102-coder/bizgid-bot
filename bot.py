@@ -1,14 +1,16 @@
 import telebot
 import requests
+import os
 
-BOT_TOKEN = "8553508437:AAGpbp3trqxdWj6BgJ_NawMoiYsSyS_Qoc8"
-GEMINI_API_KEY = "AIzaSyAc4YupRBtml1RcGPJCQoR9xtLuGpWZn4k"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 user_mode = {}
 
 @bot.message_handler(commands=['start'])
 def start(message):
+    user_mode[message.chat.id] = None
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     buttons = [
         "💼 Налоговые режимы", "💰 Единый совокупный платеж",
@@ -30,19 +32,27 @@ def ai_answer(message):
     bot.send_chat_action(message.chat.id, 'typing')
     try:
         response = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}",
-            headers={"Content-Type": "application/json"},
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            },
             json={
-                "contents": [{"parts": [{"text": f"Ты — опытный бизнес-консультант по Казахстану. Отвечай кратко, по делу, на русском языке.\n\nВопрос: {message.text}"}]}]
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {"role": "system", "content": "Ты — опытный бизнес-консультант по Казахстану. Отвечай кратко, по делу, на русском языке."},
+                    {"role": "user", "content": message.text}
+                ],
+                "max_tokens": 1000
             }
         )
         result = response.json()
         
-        if "candidates" in result:
-            answer = result["candidates"][0]["content"]["parts"][0]["text"]
+        if "choices" in result:
+            answer = result["choices"][0]["message"]["content"]
             bot.send_message(message.chat.id, answer)
         else:
-            bot.send_message(message.chat.id, f"Ошибка API: {result}")
+            bot.send_message(message.chat.id, f"Ошибка: {result}")
             
     except Exception as e:
         bot.send_message(message.chat.id, f"Ошибка: {e}")
