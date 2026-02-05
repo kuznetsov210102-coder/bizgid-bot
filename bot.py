@@ -1,13 +1,11 @@
 import telebot
 import os
-from openai import OpenAI
+import requests
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 bot = telebot.TeleBot(BOT_TOKEN)
-client = OpenAI(api_key=OPENAI_API_KEY)
-
 user_mode = {}
 
 @bot.message_handler(commands=['start'])
@@ -32,15 +30,23 @@ def ai_mode(message):
 def ai_answer(message):
     bot.send_chat_action(message.chat.id, 'typing')
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Ты — опытный бизнес-консультант по Казахстану. Отвечай кратко, по делу, на русском языке."},
-                {"role": "user", "content": message.text}
-            ],
-            max_tokens=1000
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {"role": "system", "content": "Ты — опытный бизнес-консультант по Казахстану. Отвечай кратко, по делу, на русском языке."},
+                    {"role": "user", "content": message.text}
+                ],
+                "max_tokens": 1000
+            }
         )
-        bot.send_message(message.chat.id, response.choices[0].message.content)
+        result = response.json()
+        bot.send_message(message.chat.id, result["choices"][0]["message"]["content"])
     except Exception as e:
         bot.send_message(message.chat.id, f"Ошибка: {e}")
 
