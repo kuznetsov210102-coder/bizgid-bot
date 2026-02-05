@@ -2,8 +2,8 @@ import telebot
 import requests
 import os
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 user_mode = {}
@@ -25,10 +25,16 @@ def start(message):
 @bot.message_handler(func=lambda m: m.text == "🤖 AI-консультант")
 def ai_mode(message):
     user_mode[message.chat.id] = "ai"
-    bot.send_message(message.chat.id, "🤖 AI-консультант включён!\n\nЗадай любой вопрос о бизнесе или налогах в Казахстане.\n\nДля выхода нажми /start")
+    # Отладка - показать есть ли ключ
+    key_status = "✅ Ключ найден" if GROQ_API_KEY else "❌ Ключ НЕ найден"
+    bot.send_message(message.chat.id, f"🤖 AI-консультант включён!\n\n{key_status}\n\nЗадай вопрос или /start для выхода")
 
 @bot.message_handler(func=lambda m: user_mode.get(m.chat.id) == "ai")
 def ai_answer(message):
+    if not GROQ_API_KEY:
+        bot.send_message(message.chat.id, "❌ GROQ_API_KEY не найден в переменных окружения!")
+        return
+        
     bot.send_chat_action(message.chat.id, 'typing')
     try:
         response = requests.post(
@@ -69,5 +75,5 @@ def handle_buttons(message):
     else:
         bot.send_message(message.chat.id, "Выбери раздел из меню 👇")
 
-print("Bot started!")
+print(f"Bot starting... GROQ_API_KEY exists: {bool(GROQ_API_KEY)}")
 bot.polling(none_stop=True)
