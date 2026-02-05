@@ -24,14 +24,18 @@ def start(message):
 @bot.message_handler(func=lambda m: m.text == "🤖 AI-консультант")
 def ai_mode(message):
     user_mode[message.chat.id] = "ai"
-    bot.send_message(message.chat.id, "🤖 Режим AI-консультанта включён!\n\nЗадай любой вопрос о бизнесе или налогах в Казахстане.\n\nДля выхода нажми /start")
+    # Дебаг - показываем первые символы ключа
+    key_preview = GEMINI_API_KEY[:10] if GEMINI_API_KEY else "НЕТ КЛЮЧА!"
+    bot.send_message(message.chat.id, f"🤖 AI включён!\n\nКлюч: {key_preview}...\n\nЗадай вопрос:")
 
 @bot.message_handler(func=lambda m: user_mode.get(m.chat.id) == "ai")
 def ai_answer(message):
     bot.send_chat_action(message.chat.id, 'typing')
     try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+        
         response = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}",
+            url,
             headers={"Content-Type": "application/json"},
             json={
                 "contents": [{"parts": [{"text": f"Ты — опытный бизнес-консультант по Казахстану. Отвечай кратко, по делу, на русском языке.\n\nВопрос: {message.text}"}]}]
