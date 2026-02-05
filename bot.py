@@ -3,7 +3,7 @@ import os
 import requests
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 user_mode = {}
@@ -31,25 +31,17 @@ def ai_answer(message):
     bot.send_chat_action(message.chat.id, 'typing')
     try:
         response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {GROQ_API_KEY}",
-                "Content-Type": "application/json"
-            },
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}",
+            headers={"Content-Type": "application/json"},
             json={
-                "model": "llama-3.1-8b-instant",
-                "messages": [
-                    {"role": "system", "content": "Ты — опытный бизнес-консультант по Казахстану. Отвечай кратко, по делу, на русском языке."},
-                    {"role": "user", "content": message.text}
-                ],
-                "max_tokens": 1000
+                "contents": [{"parts": [{"text": f"Ты — опытный бизнес-консультант по Казахстану. Отвечай кратко, по делу, на русском языке.\n\nВопрос: {message.text}"}]}]
             }
         )
         result = response.json()
         
-        # Проверяем ответ
-        if "choices" in result:
-            bot.send_message(message.chat.id, result["choices"][0]["message"]["content"])
+        if "candidates" in result:
+            answer = result["candidates"][0]["content"]["parts"][0]["text"]
+            bot.send_message(message.chat.id, answer)
         else:
             bot.send_message(message.chat.id, f"Ответ API: {result}")
             
