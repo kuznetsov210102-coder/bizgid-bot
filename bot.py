@@ -1,10 +1,15 @@
+cat > bot.py << 'EOF'
 import telebot
 from telebot import types
 import os
 import tempfile
+from openai import OpenAI
 
-BOT_TOKEN = "8553508437:AAEwuLlhelaNjVqqtmxUwLsxkbHn3PAioPI"
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8553508437:AAEwuLlhelaNjVqqtmxUwLsxkbHn3PAioPI")
 bot = telebot.TeleBot(BOT_TOKEN)
+
+# OpenAI клиент
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # ==================== ДАННЫЕ ====================
 
@@ -110,20 +115,14 @@ checklist_ip = [
     {"step": "5️⃣ Установить Kaspi Pay / ККМ", "description": "Для приёма платежей от клиентов", "where": "Kaspi.kz", "cost": "Бесплатно", "time": "1 день"}
 ]
 
-# Частые вопросы (расширенные)
+# Частые вопросы
 faq_data = {
     "Как открыть ИП?": "Для открытия ИП нужно:\n1. Зарегистрироваться на egov.kz\n2. Получить ЭЦП\n3. Подать заявление онлайн\n4. Выбрать налоговый режим\n\n⏱ Время: 1 день\n💵 Стоимость: бесплатно",
-    
     "Какой режим выбрать?": "📊 *Рекомендации:*\n\n• Доход до 3 528 МРП/год → *Патент*\n• Доход до 24 038 МРП/полугодие → *Упрощёнка (910)*\n• Розничная торговля → *Розничный налог*\n• Услуги физлицам на дому → *ЕСП*",
-    
     "Когда платить налоги?": "📅 *Сроки уплаты:*\n\n• Упрощёнка (910) — до 25 числа после отчёта\n• Патент — до получения патента\n• Розничный налог — до 25 числа после квартала\n• ЕСП — ежемесячно до 25 числа",
-    
     "Нужна ли касса?": "🧾 *ККМ обязателен если:*\n\n• Работаете с наличными\n• Розничная торговля\n• Общепит\n\n*Не нужен:* при безналичных расчётах B2B, ЕСП",
-    
     "Какие лицензии нужны?": "📜 *Лицензируемые виды деятельности:*\n\n• 🏥 Медицина и фармацевтика\n• 🎓 Образовательные услуги\n• 🚕 Пассажирские перевозки\n• 🏗 Строительство (1-3 категории)\n• 💰 Финансовые услуги\n• 🔒 Охранная деятельность\n• 🍺 Продажа алкоголя/табака\n\n*Где получить:* egov.kz → Лицензии и разрешения\n*Стоимость:* 10 МРП (≈ 40 000 тг)\n*Срок:* до 15 рабочих дней",
-    
-    "Что умеет этот бот?": "🤖 *Возможности БизГид:*\n\n📋 Налоговые режимы — сравнение всех режимов РК\n\n💰 ЕСП — информация о едином платеже для самозанятых\n\n🧮 Калькулятор — расчёт налогов по упрощёнке, патенту, рознице\n\n📅 Сроки сдачи — когда сдавать отчётность и платить\n\n📞 Контакты — телефоны и сайты госорганов\n\n✅ Чек-лист — пошаговое открытие ИП\n\n📄 Договоры — готовые шаблоны для скачивания\n\n❓ FAQ — ответы на частые вопросы",
-    
+    "Что умеет этот бот?": "🤖 *Возможности БизГид:*\n\n📋 Налоговые режимы — сравнение всех режимов РК\n\n💰 ЕСП — информация о едином платеже\n\n🧮 Калькулятор — расчёт налогов\n\n📅 Сроки сдачи — когда сдавать отчётность\n\n📞 Контакты — телефоны госорганов\n\n✅ Чек-лист — пошаговое открытие ИП\n\n📄 Договоры — готовые шаблоны\n\n🤖 AI-консультант — ответы на любые вопросы",
     "Как закрыть ИП?": "🚪 *Закрытие ИП:*\n\n1. Сдать всю отчётность\n2. Оплатить все налоги и взносы\n3. Подать заявление на egov.kz\n4. Дождаться проверки (до 3 дней)\n\n⏱ Время: 3-5 дней\n💵 Стоимость: бесплатно\n\n⚠️ *Важно:* нельзя закрыть при наличии долгов по налогам"
 }
 
@@ -135,411 +134,125 @@ contracts_templates = {
         "filename": "dogovor_arendy.txt",
         "content": """ДОГОВОР АРЕНДЫ НЕЖИЛОГО ПОМЕЩЕНИЯ
 
-г. _________________ 			«___» _____________ 20__ г.
+г. _________________ «___» _____________ 20__ г.
 
 АРЕНДОДАТЕЛЬ: ____________________________________________
-ИИН/БИН: _____________________, в лице _____________________
-действующего на основании _________________________________
+ИИН/БИН: _____________________
 
 АРЕНДАТОР: _______________________________________________
-ИИН/БИН: _____________________, в лице _____________________
-действующего на основании _________________________________
-
-заключили настоящий договор о нижеследующем:
+ИИН/БИН: _____________________
 
 1. ПРЕДМЕТ ДОГОВОРА
-
-1.1. Арендодатель передаёт, а Арендатор принимает во временное владение и пользование нежилое помещение, расположенное по адресу:
+1.1. Арендодатель передаёт Арендатору нежилое помещение по адресу:
 _____________________________________________________________
-
-1.2. Общая площадь помещения: ________ кв.м.
-
+1.2. Площадь: ________ кв.м.
 1.3. Цель использования: _____________________________________
 
-1.4. Помещение принадлежит Арендодателю на праве собственности, что подтверждается: __________________________________________
-
 2. СРОК АРЕНДЫ
+2.1. С «___» _________ 20__ г. по «___» _________ 20__ г.
 
-2.1. Срок аренды: с «___» _________ 20__ г. по «___» _________ 20__ г.
+3. АРЕНДНАЯ ПЛАТА
+3.1. Размер: __________________ тенге в месяц.
+3.2. Оплата до _____ числа каждого месяца.
 
-2.2. Договор может быть продлён по соглашению сторон.
+4. РЕКВИЗИТЫ И ПОДПИСИ
 
-3. АРЕНДНАЯ ПЛАТА И ПОРЯДОК РАСЧЁТОВ
-
-3.1. Арендная плата составляет: __________________ тенге в месяц.
-
-3.2. Оплата производится ежемесячно не позднее _____ числа текущего месяца.
-
-3.3. Способ оплаты: _________________________________________
-
-3.4. Коммунальные услуги оплачиваются: ☐ Арендодателем ☐ Арендатором
-
-4. ПРАВА И ОБЯЗАННОСТИ СТОРОН
-
-4.1. Арендодатель обязуется:
-— передать помещение в состоянии, пригодном для использования;
-— не препятствовать Арендатору в пользовании помещением;
-— производить капитальный ремонт.
-
-4.2. Арендатор обязуется:
-— использовать помещение по назначению;
-— своевременно вносить арендную плату;
-— содержать помещение в надлежащем состоянии;
-— не производить перепланировку без согласия Арендодателя;
-— вернуть помещение по окончании срока аренды.
-
-5. ОТВЕТСТВЕННОСТЬ СТОРОН
-
-5.1. За просрочку арендной платы — пеня 0,1% от суммы за каждый день просрочки.
-
-5.2. Стороны несут ответственность в соответствии с законодательством РК.
-
-6. РАСТОРЖЕНИЕ ДОГОВОРА
-
-6.1. Договор может быть расторгнут по соглашению сторон.
-
-6.2. Досрочное расторжение — с уведомлением за 30 дней.
-
-7. РЕКВИЗИТЫ И ПОДПИСИ СТОРОН
-
-АРЕНДОДАТЕЛЬ:				АРЕНДАТОР:
-_____________________			_____________________
-ИИН/БИН: _______________		ИИН/БИН: _______________
-Адрес: __________________		Адрес: __________________
-Банк: ___________________		Банк: ___________________
-ИИК: ____________________		ИИК: ____________________
-Тел: ____________________		Тел: ____________________
-
-_______________ / ________		_______________ / ________
-   (подпись)       (Ф.И.О.)		   (подпись)       (Ф.И.О.)
-
-М.П.					М.П.
+АРЕНДОДАТЕЛЬ: _______________    АРЕНДАТОР: _______________
 """
     },
-    
     "услуги": {
         "name": "🤝 Договор оказания услуг",
         "filename": "dogovor_uslugi.txt",
         "content": """ДОГОВОР ОКАЗАНИЯ УСЛУГ
 
-г. _________________ 			«___» _____________ 20__ г.
+г. _________________ «___» _____________ 20__ г.
 
 ИСПОЛНИТЕЛЬ: _____________________________________________
-ИИН/БИН: _____________________, в лице _____________________
-действующего на основании _________________________________
+ИИН/БИН: _____________________
 
 ЗАКАЗЧИК: ________________________________________________
-ИИН/БИН: _____________________, в лице _____________________
-действующего на основании _________________________________
-
-заключили настоящий договор о нижеследующем:
+ИИН/БИН: _____________________
 
 1. ПРЕДМЕТ ДОГОВОРА
-
-1.1. Исполнитель обязуется оказать Заказчику следующие услуги:
-_____________________________________________________________
+1.1. Исполнитель оказывает услуги:
 _____________________________________________________________
 
-1.2. Результат оказания услуг: ________________________________
+2. СРОКИ
+2.1. Начало: «___» _____________ 20__ г.
+2.2. Окончание: «___» _____________ 20__ г.
 
-2. СРОКИ ОКАЗАНИЯ УСЛУГ
+3. СТОИМОСТЬ
+3.1. Сумма: _________________ тенге.
 
-2.1. Начало оказания услуг: «___» _____________ 20__ г.
-2.2. Окончание оказания услуг: «___» _____________ 20__ г.
+4. РЕКВИЗИТЫ И ПОДПИСИ
 
-3. СТОИМОСТЬ УСЛУГ И ПОРЯДОК РАСЧЁТОВ
-
-3.1. Стоимость услуг составляет: _________________ тенге.
-     НДС: ☐ включён ☐ не облагается
-
-3.2. Порядок оплаты:
-☐ 100% предоплата
-☐ 50% предоплата, 50% по завершении
-☐ 100% по завершении
-☐ Другое: _______________________________________________
-
-3.3. Оплата производится в течение ___ банковских дней с момента ____________________________________________
-
-4. ПРАВА И ОБЯЗАННОСТИ СТОРОН
-
-4.1. Исполнитель обязуется:
-— оказать услуги качественно и в срок;
-— соблюдать требования Заказчика;
-— информировать о ходе выполнения.
-
-4.2. Заказчик обязуется:
-— предоставить необходимую информацию;
-— своевременно оплатить услуги;
-— принять оказанные услуги.
-
-5. ПОРЯДОК СДАЧИ-ПРИЁМКИ УСЛУГ
-
-5.1. По завершении Исполнитель предоставляет Акт выполненных работ.
-
-5.2. Заказчик в течение ___ рабочих дней подписывает Акт или направляет мотивированный отказ.
-
-5.3. При отсутствии замечаний в указанный срок услуги считаются принятыми.
-
-6. ОТВЕТСТВЕННОСТЬ СТОРОН
-
-6.1. За нарушение сроков оказания услуг — пеня 0,1% от стоимости за каждый день просрочки.
-
-6.2. За нарушение сроков оплаты — пеня 0,1% от суммы за каждый день просрочки.
-
-7. ФОРС-МАЖОР
-
-7.1. Стороны освобождаются от ответственности при наступлении обстоятельств непреодолимой силы.
-
-8. СРОК ДЕЙСТВИЯ ДОГОВОРА
-
-8.1. Договор вступает в силу с момента подписания и действует до полного исполнения обязательств.
-
-9. РЕКВИЗИТЫ И ПОДПИСИ СТОРОН
-
-ИСПОЛНИТЕЛЬ:				ЗАКАЗЧИК:
-_____________________			_____________________
-ИИН/БИН: _______________		ИИН/БИН: _______________
-Адрес: __________________		Адрес: __________________
-Банк: ___________________		Банк: ___________________
-ИИК: ____________________		ИИК: ____________________
-Тел: ____________________		Тел: ____________________
-
-_______________ / ________		_______________ / ________
-   (подпись)       (Ф.И.О.)		   (подпись)       (Ф.И.О.)
-
-М.П.					М.П.
+ИСПОЛНИТЕЛЬ: _______________    ЗАКАЗЧИК: _______________
 """
     },
-    
     "трудовой": {
         "name": "💼 Трудовой договор",
         "filename": "trudovoy_dogovor.txt",
         "content": """ТРУДОВОЙ ДОГОВОР
 
-г. _________________ 			«___» _____________ 20__ г.
+г. _________________ «___» _____________ 20__ г.
 
 РАБОТОДАТЕЛЬ: ____________________________________________
-БИН: ________________________, в лице _______________________
-действующего на основании _________________________________
+БИН: ________________________
 
 РАБОТНИК: ________________________________________________
 ИИН: ________________________
-Удостоверение личности: № ____________ выдано _______________
-
-заключили настоящий трудовой договор о нижеследующем:
 
 1. ПРЕДМЕТ ДОГОВОРА
-
-1.1. Работодатель принимает Работника на должность:
-_____________________________________________________________
-
+1.1. Должность: _____________________________________________
 1.2. Место работы: ___________________________________________
+1.3. Дата начала: «___» _____________ 20__ г.
 
-1.3. Вид договора:
-☐ На неопределённый срок
-☐ На определённый срок до «___» _____________ 20__ г.
-   Причина срочности: ________________________________________
+2. ОПЛАТА ТРУДА
+2.1. Оклад: __________________ тенге в месяц.
 
-1.4. Дата начала работы: «___» _____________ 20__ г.
+3. РЕЖИМ РАБОТЫ
+3.1. Пятидневная рабочая неделя (40 часов)
+3.2. Отпуск: 24 календарных дня
 
-1.5. Испытательный срок: ☐ Нет ☐ Да, _______ месяца(ев)
+4. РЕКВИЗИТЫ И ПОДПИСИ
 
-2. РЕЖИМ РАБОТЫ И ОТДЫХА
-
-2.1. Режим работы:
-☐ Пятидневная рабочая неделя (40 часов)
-☐ Сменный график
-☐ Гибкий график
-☐ Другое: _______________________________________________
-
-2.2. Время работы: с ___:___ до ___:___
-     Перерыв: с ___:___ до ___:___
-
-2.3. Выходные дни: __________________________________________
-
-2.4. Ежегодный оплачиваемый отпуск: 24 календарных дня.
-
-3. ОПЛАТА ТРУДА
-
-3.1. Должностной оклад: __________________ тенге в месяц.
-
-3.2. Надбавки/премии: _______________________________________
-
-3.3. Заработная плата выплачивается:
-— аванс: _____ числа каждого месяца
-— расчёт: _____ числа каждого месяца
-
-3.4. Способ выплаты: ☐ На карту ☐ Наличными
-
-4. ПРАВА И ОБЯЗАННОСТИ РАБОТНИКА
-
-4.1. Работник обязуется:
-— добросовестно выполнять должностные обязанности;
-— соблюдать трудовую дисциплину;
-— соблюдать правила внутреннего распорядка;
-— бережно относиться к имуществу Работодателя;
-— соблюдать требования охраны труда.
-
-4.2. Работник имеет право на:
-— своевременную оплату труда;
-— отдых и ежегодный отпуск;
-— безопасные условия труда;
-— социальное обеспечение.
-
-5. ПРАВА И ОБЯЗАННОСТИ РАБОТОДАТЕЛЯ
-
-5.1. Работодатель обязуется:
-— обеспечить работой согласно договору;
-— своевременно выплачивать заработную плату;
-— обеспечить безопасные условия труда;
-— осуществлять обязательные отчисления (ОПВ, СО, ВОСМС).
-
-5.2. Работодатель имеет право:
-— требовать выполнения обязанностей;
-— привлекать к дисциплинарной ответственности;
-— поощрять за успехи в работе.
-
-6. СОЦИАЛЬНОЕ ОБЕСПЕЧЕНИЕ
-
-6.1. Работодатель осуществляет:
-— ОПВ (10% от зарплаты)
-— СО (3,5% от зарплаты)
-— ВОСМС (3% от зарплаты)
-— ОППВ (1,5% от зарплаты) — за счёт работодателя
-
-7. РАСТОРЖЕНИЕ ДОГОВОРА
-
-7.1. Договор может быть расторгнут:
-— по соглашению сторон;
-— по инициативе Работника (уведомление за 1 месяц);
-— по инициативе Работодателя (по основаниям ТК РК).
-
-8. РЕКВИЗИТЫ И ПОДПИСИ СТОРОН
-
-РАБОТОДАТЕЛЬ:				РАБОТНИК:
-_____________________			_____________________
-БИН: ___________________		ИИН: ___________________
-Адрес: __________________		Адрес: __________________
-Банк: ___________________		Банк: ___________________
-ИИК: ____________________		ИИК: ____________________
-Тел: ____________________		Тел: ____________________
-
-_______________ / ________		_______________ / ________
-   (подпись)       (Ф.И.О.)		   (подпись)       (Ф.И.О.)
-
-М.П.
-
-Экземпляр трудового договора получил(а): _____________ / __________
-                                          (подпись)     (дата)
+РАБОТОДАТЕЛЬ: _______________    РАБОТНИК: _______________
 """
     },
-    
     "поставка": {
         "name": "📦 Договор поставки",
         "filename": "dogovor_postavki.txt",
         "content": """ДОГОВОР ПОСТАВКИ ТОВАРОВ
 
-г. _________________ 			«___» _____________ 20__ г.
+г. _________________ «___» _____________ 20__ г.
 
 ПОСТАВЩИК: _______________________________________________
-ИИН/БИН: _____________________, в лице _____________________
-действующего на основании _________________________________
+ИИН/БИН: _____________________
 
 ПОКУПАТЕЛЬ: ______________________________________________
-ИИН/БИН: _____________________, в лице _____________________
-действующего на основании _________________________________
-
-заключили настоящий договор о нижеследующем:
+ИИН/БИН: _____________________
 
 1. ПРЕДМЕТ ДОГОВОРА
+1.1. Поставщик передаёт товар:
+_____________________________________________________________
 
-1.1. Поставщик обязуется передать, а Покупатель принять и оплатить товар:
-
-№ | Наименование | Ед.изм. | Кол-во | Цена (тг) | Сумма (тг)
---|--------------|---------|--------|-----------|----------
-1 |              |         |        |           |
-2 |              |         |        |           |
-3 |              |         |        |           |
-
-1.2. Общая сумма договора: __________________ тенге.
-     НДС: ☐ включён (12%) ☐ не облагается
-
-1.3. Качество товара должно соответствовать: _________________
-
-2. СРОКИ И ПОРЯДОК ПОСТАВКИ
-
+2. СРОКИ И ДОСТАВКА
 2.1. Срок поставки: до «___» _____________ 20__ г.
+2.2. Место: _________________________________________
 
-2.2. Место поставки: _________________________________________
+3. СТОИМОСТЬ
+3.1. Сумма: __________________ тенге.
 
-2.3. Способ доставки:
-☐ Самовывоз Покупателем
-☐ Доставка Поставщиком (включена в стоимость)
-☐ Доставка Поставщиком (за счёт Покупателя)
+4. РЕКВИЗИТЫ И ПОДПИСИ
 
-2.4. Переход права собственности: с момента подписания накладной.
-
-3. ПОРЯДОК РАСЧЁТОВ
-
-3.1. Порядок оплаты:
-☐ 100% предоплата
-☐ 50% предоплата, 50% при получении
-☐ 100% при получении
-☐ Отсрочка _____ дней
-☐ Другое: _______________________________________________
-
-3.2. Оплата производится в течение ___ банковских дней путём перечисления на расчётный счёт Поставщика.
-
-4. ПРИЁМКА ТОВАРА
-
-4.1. Приёмка товара по количеству — в момент получения.
-
-4.2. Приёмка товара по качеству — в течение ___ дней с момента получения.
-
-4.3. При обнаружении недостатков Покупатель составляет акт и уведомляет Поставщика в течение ___ дней.
-
-5. ГАРАНТИИ
-
-5.1. Гарантийный срок на товар: _______ месяцев с момента передачи.
-
-5.2. Гарантия не распространяется на повреждения по вине Покупателя.
-
-6. ОТВЕТСТВЕННОСТЬ СТОРОН
-
-6.1. За нарушение сроков поставки — пеня 0,1% от стоимости за каждый день просрочки.
-
-6.2. За нарушение сроков оплаты — пеня 0,1% от суммы за каждый день просрочки.
-
-6.3. За поставку некачественного товара — замена или возврат средств.
-
-7. ФОРС-МАЖОР
-
-7.1. Стороны освобождаются от ответственности при наступлении обстоятельств непреодолимой силы.
-
-8. СРОК ДЕЙСТВИЯ ДОГОВОРА
-
-8.1. Договор вступает в силу с момента подписания и действует до полного исполнения обязательств.
-
-9. РЕКВИЗИТЫ И ПОДПИСИ СТОРОН
-
-ПОСТАВЩИК:				ПОКУПАТЕЛЬ:
-_____________________			_____________________
-ИИН/БИН: _______________		ИИН/БИН: _______________
-Адрес: __________________		Адрес: __________________
-Банк: ___________________		Банк: ___________________
-ИИК: ____________________		ИИК: ____________________
-Тел: ____________________		Тел: ____________________
-
-_______________ / ________		_______________ / ________
-   (подпись)       (Ф.И.О.)		   (подпись)       (Ф.И.О.)
-
-М.П.					М.П.
+ПОСТАВЩИК: _______________    ПОКУПАТЕЛЬ: _______________
 """
     }
 }
 
-# Временное хранилище для калькулятора
+# Хранилище данных пользователей
 user_calc_data = {}
+user_ai_mode = {}
 
 # ==================== МЕНЮ ====================
 
@@ -554,6 +267,7 @@ def main_menu():
         types.KeyboardButton("✅ Чек-лист открытия ИП"),
         types.KeyboardButton("❓ Частые вопросы"),
         types.KeyboardButton("📄 Шаблоны договоров"),
+        types.KeyboardButton("🤖 AI-консультант")
     )
     return markup
 
@@ -561,6 +275,7 @@ def main_menu():
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
+    user_ai_mode.pop(message.chat.id, None)
     bot.send_message(
         message.chat.id,
         "👋 Привет! Я *БизГид* — твой помощник по налогам и бизнесу в Казахстане.\n\n"
@@ -569,8 +284,30 @@ def send_welcome(message):
         reply_markup=main_menu()
     )
 
-@bot.message_handler(func=lambda m: m.text == "🏠 В главное меню")
-def go_home(message):
+# --- AI-КОНСУЛЬТАНТ ---
+@bot.message_handler(func=lambda m: m.text == "🤖 AI-консультант")
+def ai_consultant(message):
+    user_ai_mode[message.chat.id] = True
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(types.KeyboardButton("◀️ Выйти из AI-режима"))
+    
+    bot.send_message(
+        message.chat.id,
+        "🤖 *AI-консультант*\n\n"
+        "Задай любой вопрос о бизнесе в Казахстане:\n"
+        "• Налоги и отчётность\n"
+        "• Регистрация ИП/ТОО\n"
+        "• Лицензии и разрешения\n"
+        "• Трудовое право\n"
+        "• И многое другое!\n\n"
+        "✍️ Просто напиши свой вопрос:",
+        parse_mode="Markdown",
+        reply_markup=markup
+    )
+
+@bot.message_handler(func=lambda m: m.text == "◀️ Выйти из AI-режима")
+def exit_ai_mode(message):
+    user_ai_mode.pop(message.chat.id, None)
     bot.send_message(
         message.chat.id,
         "🏠 *Главное меню*\n\nВыбери раздел:",
@@ -578,9 +315,58 @@ def go_home(message):
         reply_markup=main_menu()
     )
 
+@bot.message_handler(func=lambda m: m.chat.id in user_ai_mode and user_ai_mode.get(m.chat.id))
+def process_ai_question(message):
+    if message.text.startswith("◀️"):
+        return
+    
+    wait_msg = bot.send_message(message.chat.id, "🤔 Думаю...")
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system", 
+                    "content": """Ты — эксперт по бизнесу и налогам в Казахстане. 
+Отвечай кратко, структурировано, на русском языке.
+Используй актуальную информацию по законодательству РК.
+Давай практичные советы с конкретными шагами.
+Если не уверен — честно скажи об этом.
+МРП в 2024 году = 3 946 тенге."""
+                },
+                {"role": "user", "content": message.text}
+            ],
+            max_tokens=1000,
+            temperature=0.7
+        )
+        
+        answer = response.choices[0].message.content
+        bot.delete_message(message.chat.id, wait_msg.message_id)
+        
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add(types.KeyboardButton("◀️ Выйти из AI-режима"))
+        
+        bot.send_message(
+            message.chat.id, 
+            f"🤖 {answer}\n\n_Задай ещё вопрос или выйди из AI-режима_",
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
+        
+    except Exception as e:
+        bot.delete_message(message.chat.id, wait_msg.message_id)
+        bot.send_message(
+            message.chat.id, 
+            f"❌ Ошибка: {str(e)}\n\nПопробуй ещё раз или выйди из AI-режима.",
+            reply_markup=main_menu()
+        )
+        user_ai_mode.pop(message.chat.id, None)
+
 # --- НАЛОГОВЫЕ РЕЖИМЫ ---
 @bot.message_handler(func=lambda m: m.text == "📋 Налоговые режимы")
 def show_tax_regimes(message):
+    user_ai_mode.pop(message.chat.id, None)
     markup = types.InlineKeyboardMarkup(row_width=1)
     for regime in tax_regimes.keys():
         markup.add(types.InlineKeyboardButton(regime, callback_data=f"regime_{regime}"))
@@ -608,12 +394,12 @@ def show_regime_details(call):
             call.message.message_id,
             parse_mode="Markdown"
         )
-    
     bot.answer_callback_query(call.id)
 
 # --- ЕСП ---
 @bot.message_handler(func=lambda m: m.text == "💰 Единый совокупный платёж")
 def show_esp(message):
+    user_ai_mode.pop(message.chat.id, None)
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("📊 Ставки ЕСП", callback_data="esp_rates"),
@@ -637,34 +423,24 @@ def handle_esp(call):
         text += f"1 МРП = {esp_data['categories']['🏠 За себя (город)']['mci']} тг\n\n"
         for cat, data in esp_data['categories'].items():
             text += f"{cat}\n└ {data['amount']} тг/мес ({data['rate']} МРП)\n\n"
-    
     elif call.data == "esp_covers":
         text = "📋 *Что входит в ЕСП:*\n\n"
         for item in esp_data['covers']:
             text += f"{item}\n"
         text += "\n💡 Один платёж — и все взносы уплачены!"
-    
     elif call.data == "esp_who":
         text = "❓ *Кому подходит ЕСП:*\n\n"
-        text += "✅ Репетиторы\n"
-        text += "✅ Няни, сиделки\n"
-        text += "✅ Домработницы\n"
-        text += "✅ Мастера маникюра (на дому)\n"
-        text += "✅ Фрилансеры (услуги физлицам)\n"
-        text += "✅ Кондитеры (на дому)\n\n"
+        text += "✅ Репетиторы\n✅ Няни, сиделки\n✅ Домработницы\n"
+        text += "✅ Мастера маникюра (на дому)\n✅ Фрилансеры\n✅ Кондитеры (на дому)\n\n"
         text += "❌ *Не подходит:* торговля, услуги юрлицам"
     
-    bot.edit_message_text(
-        text,
-        call.message.chat.id,
-        call.message.message_id,
-        parse_mode="Markdown"
-    )
+    bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
     bot.answer_callback_query(call.id)
 
 # --- КАЛЬКУЛЯТОР ---
 @bot.message_handler(func=lambda m: m.text == "🧮 Калькулятор налогов")
 def calculator_start(message):
+    user_ai_mode.pop(message.chat.id, None)
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("📊 ФНО 910 (Упрощёнка)", callback_data="calc_910"),
@@ -674,8 +450,7 @@ def calculator_start(message):
     
     bot.send_message(
         message.chat.id,
-        "🧮 *Калькулятор налогов*\n\n"
-        "Выбери налоговый режим:",
+        "🧮 *Калькулятор налогов*\n\nВыбери налоговый режим:",
         parse_mode="Markdown",
         reply_markup=markup
     )
@@ -685,28 +460,16 @@ def calculator_select(call):
     calc_type = call.data.replace("calc_", "")
     user_calc_data[call.message.chat.id] = {"type": calc_type}
     
-    if calc_type == "910":
-        text = "📊 *Калькулятор ФНО 910*\n\n"
-        text += "Введи сумму дохода за *полугодие* (в тенге):\n\n"
-        text += "_Пример: 1000000_"
-    elif calc_type == "patent":
-        text = "💳 *Калькулятор Патента*\n\n"
-        text += "Введи планируемый доход за *период патента* (в тенге):\n\n"
-        text += "_Пример: 500000_"
-    elif calc_type == "retail":
-        text = "🛒 *Калькулятор Розничного налога*\n\n"
-        text += "Введи сумму дохода за *квартал* (в тенге):\n\n"
-        text += "_Пример: 5000000_"
+    texts = {
+        "910": "📊 *Калькулятор ФНО 910*\n\nВведи сумму дохода за *полугодие* (в тенге):\n\n_Пример: 1000000_",
+        "patent": "💳 *Калькулятор Патента*\n\nВведи планируемый доход за *период патента* (в тенге):\n\n_Пример: 500000_",
+        "retail": "🛒 *Калькулятор Розничного налога*\n\nВведи сумму дохода за *квартал* (в тенге):\n\n_Пример: 5000000_"
+    }
     
-    bot.edit_message_text(
-        text,
-        call.message.chat.id,
-        call.message.message_id,
-        parse_mode="Markdown"
-    )
+    bot.edit_message_text(texts[calc_type], call.message.chat.id, call.message.message_id, parse_mode="Markdown")
     bot.answer_callback_query(call.id)
 
-@bot.message_handler(func=lambda m: m.chat.id in user_calc_data)
+@bot.message_handler(func=lambda m: m.chat.id in user_calc_data and not user_ai_mode.get(m.chat.id))
 def calculate_tax(message):
     try:
         amount = int(message.text.replace(" ", "").replace(",", ""))
@@ -714,50 +477,33 @@ def calculate_tax(message):
         
         if calc_type == "910":
             tax = amount * 0.03
-            ipn = amount * 0.015
-            social = amount * 0.015
-            text = f"📊 *Расчёт ФНО 910*\n\n"
-            text += f"💵 Доход: {amount:,} тг\n\n"
-            text += f"📍 ИПН (1.5%): {ipn:,.0f} тг\n"
-            text += f"📍 Соц. налог (1.5%): {social:,.0f} тг\n"
-            text += f"━━━━━━━━━━━━━━━\n"
-            text += f"💰 *Итого налог: {tax:,.0f} тг*"
-        
+            text = f"📊 *Расчёт ФНО 910*\n\n💵 Доход: {amount:,} тг\n\n"
+            text += f"📍 ИПН (1.5%): {amount * 0.015:,.0f} тг\n📍 Соц. налог (1.5%): {amount * 0.015:,.0f} тг\n"
+            text += f"━━━━━━━━━━━━━━━\n💰 *Итого налог: {tax:,.0f} тг*"
         elif calc_type == "patent":
             tax = amount * 0.01
-            text = f"💳 *Расчёт Патента*\n\n"
-            text += f"💵 Доход: {amount:,} тг\n\n"
-            text += f"📍 Налог (1%): {tax:,.0f} тг\n"
-            text += f"━━━━━━━━━━━━━━━\n"
-            text += f"💰 *Итого к оплате: {tax:,.0f} тг*"
-        
+            text = f"💳 *Расчёт Патента*\n\n💵 Доход: {amount:,} тг\n\n"
+            text += f"📍 Налог (1%): {tax:,.0f} тг\n━━━━━━━━━━━━━━━\n💰 *Итого: {tax:,.0f} тг*"
         elif calc_type == "retail":
             tax = amount * 0.03
-            text = f"🛒 *Расчёт Розничного налога*\n\n"
-            text += f"💵 Доход: {amount:,} тг\n\n"
-            text += f"📍 Налог (3%): {tax:,.0f} тг\n"
-            text += f"━━━━━━━━━━━━━━━\n"
-            text += f"💰 *Итого к оплате: {tax:,.0f} тг*"
+            text = f"🛒 *Расчёт Розничного налога*\n\n💵 Доход: {amount:,} тг\n\n"
+            text += f"📍 Налог (3%): {tax:,.0f} тг\n━━━━━━━━━━━━━━━\n💰 *Итого: {tax:,.0f} тг*"
         
         del user_calc_data[message.chat.id]
-        bot.send_message(message.chat.id, text, parse_mode="Markdown")
+        bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=main_menu())
         
     except ValueError:
-        bot.send_message(message.chat.id, "❌ Введи число без букв и символов\n\n_Пример: 1000000_", parse_mode="Markdown")
+        bot.send_message(message.chat.id, "❌ Введи число без букв\n\n_Пример: 1000000_", parse_mode="Markdown")
 
 # --- СРОКИ СДАЧИ ---
 @bot.message_handler(func=lambda m: m.text == "📅 Сроки сдачи отчётности")
 def show_deadlines(message):
+    user_ai_mode.pop(message.chat.id, None)
     markup = types.InlineKeyboardMarkup(row_width=1)
     for deadline in deadlines_data.keys():
         markup.add(types.InlineKeyboardButton(deadline, callback_data=f"deadline_{deadline}"))
     
-    bot.send_message(
-        message.chat.id,
-        "📅 *Сроки сдачи отчётности*\n\nВыбери налоговый режим:",
-        parse_mode="Markdown",
-        reply_markup=markup
-    )
+    bot.send_message(message.chat.id, "📅 *Сроки сдачи отчётности*\n\nВыбери режим:", parse_mode="Markdown", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("deadline_"))
 def show_deadline_details(call):
@@ -765,35 +511,22 @@ def show_deadline_details(call):
     deadline = deadlines_data.get(deadline_name)
     
     if deadline:
-        text = f"📅 *{deadline_name}*\n\n"
-        text += f"📆 Период: {deadline['period']}\n\n"
-        text += "*Сроки сдачи:*\n"
+        text = f"📅 *{deadline_name}*\n\n📆 Период: {deadline['period']}\n\n*Сроки:*\n"
         for d in deadline['deadlines']:
             text += f"{d}\n"
         text += f"\n💳 {deadline['payment']}"
-        
-        bot.edit_message_text(
-            text,
-            call.message.chat.id,
-            call.message.message_id,
-            parse_mode="Markdown"
-        )
-    
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
     bot.answer_callback_query(call.id)
 
 # --- КОНТАКТЫ ---
 @bot.message_handler(func=lambda m: m.text == "📞 Контакты госорганов")
 def show_contacts(message):
+    user_ai_mode.pop(message.chat.id, None)
     markup = types.InlineKeyboardMarkup(row_width=1)
     for org in contacts_data.keys():
         markup.add(types.InlineKeyboardButton(org, callback_data=f"contact_{org}"))
     
-    bot.send_message(
-        message.chat.id,
-        "📞 *Контакты госорганов*\n\nВыбери организацию:",
-        parse_mode="Markdown",
-        reply_markup=markup
-    )
+    bot.send_message(message.chat.id, "📞 *Контакты госорганов*\n\nВыбери:", parse_mode="Markdown", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("contact_"))
 def show_contact_details(call):
@@ -801,23 +534,10 @@ def show_contact_details(call):
     org = contacts_data.get(org_name)
     
     if org:
-        text = f"*{org_name}*\n\n"
-        text += f"{org['phone']}\n"
-        text += f"{org['website']}\n"
-        text += f"{org['cabinet']}\n\n"
-        text += f"📝 _{org['description']}_"
-        
+        text = f"*{org_name}*\n\n{org['phone']}\n{org['website']}\n{org['cabinet']}\n\n📝 _{org['description']}_"
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("« Назад", callback_data="contacts_back"))
-        
-        bot.edit_message_text(
-            text,
-            call.message.chat.id,
-            call.message.message_id,
-            parse_mode="Markdown",
-            reply_markup=markup
-        )
-    
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
     bot.answer_callback_query(call.id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "contacts_back")
@@ -825,84 +545,48 @@ def contacts_back(call):
     markup = types.InlineKeyboardMarkup(row_width=1)
     for org in contacts_data.keys():
         markup.add(types.InlineKeyboardButton(org, callback_data=f"contact_{org}"))
-    
-    bot.edit_message_text(
-        "📞 *Контакты госорганов*\n\nВыбери организацию:",
-        call.message.chat.id,
-        call.message.message_id,
-        parse_mode="Markdown",
-        reply_markup=markup
-    )
+    bot.edit_message_text("📞 *Контакты госорганов*\n\nВыбери:", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
     bot.answer_callback_query(call.id)
 
 # --- ЧЕК-ЛИСТ ---
 @bot.message_handler(func=lambda m: m.text == "✅ Чек-лист открытия ИП")
 def show_checklist(message):
+    user_ai_mode.pop(message.chat.id, None)
     markup = types.InlineKeyboardMarkup(row_width=1)
     for i, item in enumerate(checklist_ip):
         markup.add(types.InlineKeyboardButton(item['step'], callback_data=f"check_{i}"))
     
-    bot.send_message(
-        message.chat.id,
-        "✅ *Чек-лист открытия ИП*\n\n"
-        "5 простых шагов для старта бизнеса.\n"
-        "Нажми на шаг для подробностей:",
-        parse_mode="Markdown",
-        reply_markup=markup
-    )
+    bot.send_message(message.chat.id, "✅ *Чек-лист открытия ИП*\n\n5 шагов для старта бизнеса:", parse_mode="Markdown", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("check_"))
 def show_checklist_item(call):
     idx = int(call.data.replace("check_", ""))
     item = checklist_ip[idx]
     
-    text = f"*{item['step']}*\n\n"
-    text += f"📝 {item['description']}\n\n"
-    text += f"📍 *Где:* {item['where']}\n"
-    text += f"💵 *Стоимость:* {item['cost']}\n"
-    text += f"⏱ *Время:* {item['time']}"
+    text = f"*{item['step']}*\n\n📝 {item['description']}\n\n"
+    text += f"📍 *Где:* {item['where']}\n💵 *Стоимость:* {item['cost']}\n⏱ *Время:* {item['time']}"
     
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("« Назад к списку", callback_data="checklist_back"))
-    
-    bot.edit_message_text(
-        text,
-        call.message.chat.id,
-        call.message.message_id,
-        parse_mode="Markdown",
-        reply_markup=markup
-    )
+    markup.add(types.InlineKeyboardButton("« Назад", callback_data="checklist_back"))
+    bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data == "checklist_back")
 def checklist_back(call):
     markup = types.InlineKeyboardMarkup(row_width=1)
     for i, item in enumerate(checklist_ip):
         markup.add(types.InlineKeyboardButton(item['step'], callback_data=f"check_{i}"))
-    
-    bot.edit_message_text(
-        "✅ *Чек-лист открытия ИП*\n\n"
-        "5 простых шагов для старта бизнеса.\n"
-        "Нажми на шаг для подробностей:",
-        call.message.chat.id,
-        call.message.message_id,
-        parse_mode="Markdown",
-        reply_markup=markup
-    )
+    bot.edit_message_text("✅ *Чек-лист открытия ИП*\n\n5 шагов для старта бизнеса:", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
     bot.answer_callback_query(call.id)
 
 # --- ЧАСТЫЕ ВОПРОСЫ ---
 @bot.message_handler(func=lambda m: m.text == "❓ Частые вопросы")
 def show_faq(message):
+    user_ai_mode.pop(message.chat.id, None)
     markup = types.InlineKeyboardMarkup(row_width=1)
     for i, question in enumerate(faq_data.keys()):
         markup.add(types.InlineKeyboardButton(question, callback_data=f"faq_{i}"))
     
-    bot.send_message(
-        message.chat.id,
-        "❓ *Частые вопросы*\n\nВыбери вопрос:",
-        parse_mode="Markdown",
-        reply_markup=markup
-    )
+    bot.send_message(message.chat.id, "❓ *Частые вопросы*\n\nВыбери:", parse_mode="Markdown", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("faq_"))
 def show_faq_answer(call):
@@ -912,15 +596,8 @@ def show_faq_answer(call):
     
     if idx < len(questions):
         markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("« Назад к вопросам", callback_data="faq_back"))
-        
-        bot.edit_message_text(
-            f"*{questions[idx]}*\n\n{answers[idx]}",
-            call.message.chat.id,
-            call.message.message_id,
-            parse_mode="Markdown",
-            reply_markup=markup
-        )
+        markup.add(types.InlineKeyboardButton("« Назад", callback_data="faq_back"))
+        bot.edit_message_text(f"*{questions[idx]}*\n\n{answers[idx]}", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
     bot.answer_callback_query(call.id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "faq_back")
@@ -928,19 +605,13 @@ def faq_back(call):
     markup = types.InlineKeyboardMarkup(row_width=1)
     for i, question in enumerate(faq_data.keys()):
         markup.add(types.InlineKeyboardButton(question, callback_data=f"faq_{i}"))
-    
-    bot.edit_message_text(
-        "❓ *Частые вопросы*\n\nВыбери вопрос:",
-        call.message.chat.id,
-        call.message.message_id,
-        parse_mode="Markdown",
-        reply_markup=markup
-    )
+    bot.edit_message_text("❓ *Частые вопросы*\n\nВыбери:", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
     bot.answer_callback_query(call.id)
 
 # --- ШАБЛОНЫ ДОГОВОРОВ ---
 @bot.message_handler(func=lambda m: m.text == "📄 Шаблоны договоров")
 def show_contracts(message):
+    user_ai_mode.pop(message.chat.id, None)
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("🏠 Договор аренды", callback_data="contract_аренда"),
@@ -949,14 +620,7 @@ def show_contracts(message):
         types.InlineKeyboardButton("📦 Договор поставки", callback_data="contract_поставка")
     )
     
-    bot.send_message(
-        message.chat.id,
-        "📄 *Шаблоны договоров*\n\n"
-        "Готовые шаблоны по законодательству РК.\n"
-        "Выбери тип договора для скачивания:",
-        parse_mode="Markdown",
-        reply_markup=markup
-    )
+    bot.send_message(message.chat.id, "📄 *Шаблоны договоров*\n\nВыбери тип:", parse_mode="Markdown", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("contract_"))
 def send_contract(call):
@@ -964,26 +628,20 @@ def send_contract(call):
     contract = contracts_templates.get(contract_type)
     
     if contract:
-        # Отправляем файл
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
             f.write(contract['content'])
             temp_path = f.name
         
         with open(temp_path, 'rb') as doc:
-            bot.send_document(
-                call.message.chat.id,
-                doc,
-                visible_file_name=contract['filename'],
-                caption=f"📄 *{contract['name']}*\n\n✅ Шаблон по законодательству РК\n📝 Заполни пустые поля и распечатай",
-                parse_mode="Markdown"
-            )
-        
+            bot.send_document(call.message.chat.id, doc, visible_file_name=contract['filename'],
+                caption=f"📄 *{contract['name']}*\n\n✅ Шаблон по законодательству РК", parse_mode="Markdown")
         os.unlink(temp_path)
     
-    bot.answer_callback_query(call.id, "📄 Отправляю шаблон...")
+    bot.answer_callback_query(call.id, "📄 Отправляю...")
 
 # ==================== ЗАПУСК ====================
 
 if __name__ == "__main__":
     print("Бот запущен!")
     bot.polling(none_stop=True)
+EOF
