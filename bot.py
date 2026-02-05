@@ -553,7 +553,7 @@ def main_menu():
         types.KeyboardButton("📞 Контакты госорганов"),
         types.KeyboardButton("✅ Чек-лист открытия ИП"),
         types.KeyboardButton("❓ Частые вопросы"),
-        types.KeyboardButton("📄 Шаблоны договоров")
+        types.KeyboardButton("📄 Шаблоны договоров"),
         types.KeyboardButton("🏠 В главное меню")
     )
     return markup
