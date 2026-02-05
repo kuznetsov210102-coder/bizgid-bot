@@ -1,9 +1,8 @@
 import telebot
-import os
 import requests
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+BOT_TOKEN = "8553508437:AAGpbp3trqxdWj6BgJ_NawMoiYsSyS_Qoc8"
+GEMINI_API_KEY = "AIzaSyAc4YupRBtml1RcGPJCQoR9xtLuGpWZn4k"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 user_mode = {}
@@ -24,18 +23,14 @@ def start(message):
 @bot.message_handler(func=lambda m: m.text == "🤖 AI-консультант")
 def ai_mode(message):
     user_mode[message.chat.id] = "ai"
-    # Дебаг - показываем первые символы ключа
-    key_preview = GEMINI_API_KEY[:10] if GEMINI_API_KEY else "НЕТ КЛЮЧА!"
-    bot.send_message(message.chat.id, f"🤖 AI включён!\n\nКлюч: {key_preview}...\n\nЗадай вопрос:")
+    bot.send_message(message.chat.id, "🤖 AI-консультант включён!\n\nЗадай любой вопрос о бизнесе или налогах в Казахстане.\n\nДля выхода нажми /start")
 
 @bot.message_handler(func=lambda m: user_mode.get(m.chat.id) == "ai")
 def ai_answer(message):
     bot.send_chat_action(message.chat.id, 'typing')
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-        
         response = requests.post(
-            url,
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}",
             headers={"Content-Type": "application/json"},
             json={
                 "contents": [{"parts": [{"text": f"Ты — опытный бизнес-консультант по Казахстану. Отвечай кратко, по делу, на русском языке.\n\nВопрос: {message.text}"}]}]
@@ -47,7 +42,7 @@ def ai_answer(message):
             answer = result["candidates"][0]["content"]["parts"][0]["text"]
             bot.send_message(message.chat.id, answer)
         else:
-            bot.send_message(message.chat.id, f"Ответ API: {result}")
+            bot.send_message(message.chat.id, f"Ошибка API: {result}")
             
     except Exception as e:
         bot.send_message(message.chat.id, f"Ошибка: {e}")
