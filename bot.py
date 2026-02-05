@@ -30,7 +30,7 @@ def ai_answer(message):
     bot.send_chat_action(message.chat.id, 'typing')
     try:
         response = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}",
             headers={"Content-Type": "application/json"},
             json={
                 "contents": [{"parts": [{"text": f"Ты — опытный бизнес-консультант по Казахстану. Отвечай кратко, по делу, на русском языке.\n\nВопрос: {message.text}"}]}]
