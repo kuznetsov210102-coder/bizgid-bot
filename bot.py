@@ -2,6 +2,7 @@ import telebot
 import requests
 import os
 import re
+import subprocess
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
@@ -100,11 +101,53 @@ BUTTON_RESPONSES = {
 
 def clean_markdown(text):
     """Убираем мусор из ответа AI"""
-    text = re.sub(r'#{1,6}\s*', '', text)  # убираем ### заголовки
-    text = text.replace('**', '')           # убираем жирный
-    text = text.replace('__', '')           # убираем подчёркивание
-    text = text.replace('```', '')          # убираем код-блоки
+    text = re.sub(r'#{1,6}\s*', '', text)
+    text = text.replace('**', '')
+    text = text.replace('__', '')
+    text = text.replace('```', '')
     return text.strip()
+
+def transcribe_voice(file_path):
+    """Распознаём голос через Groq Whisper"""
+    try:
+        with open(file_path, 'rb') as audio_file:
+            response = requests.post(
+                "https://api.groq.com/openai/v1/audio/transcriptions",
+                headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+                files={"file": audio_file},
+                data={"model": "whisper-large-v3-turbo", "language": "ru"}
+            )
+        result = response.json()
+        return result.get("text", "")
+    except Exception as e:
+        print(f"Transcription error: {e}")
+        return ""
+
+def get_ai_response(text):
+    """Получаем ответ от AI"""
+    try:
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": text}
+                ],
+                "max_tokens": 1500,
+                "temperature": 0.3
+            }
+        )
+        result = response.json()
+        if "choices" in result:
+            return clean_markdown(result["choices"][0]["message"]["content"])
+    except Exception as e:
+        print(f"AI error: {e}")
+    return "Произошла ошибка, попробуй ещё раз"
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -118,53 +161,64 @@ def start(message):
         "🤖 AI-консультант"
     ]
     markup.add(*[telebot.types.KeyboardButton(b) for b in buttons])
-    bot.send_message(message.chat.id, "👋 Привет! Я БизГид — твой помощник по налогам и бизнесу в Казахстане.\n\nВыбери раздел:", reply_markup=markup)
+    bot.send_message(message.chat.id, "👋 Привет! Я БизГид — твой помощник по налогам и бизнесу в Казахстане.\n\nВыбери раздел или отправь голосовое 🎤", reply_markup=markup)
 
 @bot.message_handler(func=lambda m: m.text == "🤖 AI-консультант")
 def ai_mode(message):
     user_mode[message.chat.id] = "ai"
-    bot.send_message(message.chat.id, "🤖 AI-консультант активирован!\n\nЗадай вопрос по налогам и бизнесу в Казахстане:")
+    bot.send_message(message.chat.id, "🤖 AI-консультант активирован!\n\nЗадай вопрос текстом или голосовым 🎤")
 
 @bot.message_handler(func=lambda m: m.text in BUTTON_RESPONSES)
 def handle_buttons(message):
-    """Кнопки работают ВСЕГДА, даже в AI-режиме"""
     bot.send_message(message.chat.id, BUTTON_RESPONSES[message.text])
+
+@bot.message_handler(content_types=['voice'])
+def handle_voice(message):
+    """Обработка голосовых сообщений"""
+    bot.send_chat_action(message.chat.id, 'typing')
+    
+    try:
+        # Скачиваем голосовое
+        file_info = bot.get_file(message.voice.file_id)
+        downloaded = bot.download_file(file_info.file_path)
+        
+        # Сохраняем как OGG
+        ogg_path = f"/tmp/voice_{message.chat.id}.ogg"
+        mp3_path = f"/tmp/voice_{message.chat.id}.mp3"
+        
+        with open(ogg_path, 'wb') as f:
+            f.write(downloaded)
+        
+        # Конвертируем в MP3
+        subprocess.run(['ffmpeg', '-y', '-i', ogg_path, mp3_path], 
+                      capture_output=True)
+        
+        # Распознаём текст
+        text = transcribe_voice(mp3_path)
+        
+        # Удаляем временные файлы
+        os.remove(ogg_path)
+        os.remove(mp3_path)
+        
+        if text:
+            bot.send_message(message.chat.id, f"🎤 Распознано: {text}")
+            answer = get_ai_response(text)
+            bot.send_message(message.chat.id, answer)
+        else:
+            bot.send_message(message.chat.id, "❌ Не удалось распознать голос. Попробуй ещё раз или напиши текстом.")
+            
+    except Exception as e:
+        print(f"Voice error: {e}")
+        bot.send_message(message.chat.id, "❌ Ошибка обработки голосового. Попробуй ещё раз.")
 
 @bot.message_handler(func=lambda m: user_mode.get(m.chat.id) == "ai")
 def ai_answer(message):
     if not GROQ_API_KEY:
         bot.send_message(message.chat.id, "❌ Сервис временно недоступен")
         return
-        
     bot.send_chat_action(message.chat.id, 'typing')
-    try:
-        response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {GROQ_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": "llama-3.1-8b-instant",
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": message.text}
-                ],
-                "max_tokens": 1500,
-                "temperature": 0.3
-            }
-        )
-        result = response.json()
-        
-        if "choices" in result:
-            answer = result["choices"][0]["message"]["content"]
-            answer = clean_markdown(answer)
-            bot.send_message(message.chat.id, answer)
-        else:
-            bot.send_message(message.chat.id, "Произошла ошибка, попробуй ещё раз")
-            
-    except Exception as e:
-        bot.send_message(message.chat.id, "Произошла ошибка, попробуй ещё раз")
+    answer = get_ai_response(message.text)
+    bot.send_message(message.chat.id, answer)
 
 @bot.message_handler(func=lambda m: True)
 def fallback(message):
